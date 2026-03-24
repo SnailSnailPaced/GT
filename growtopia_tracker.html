@@ -535,6 +535,7 @@
       <div class="hstat-label">Net Profit</div>
       <div class="hstat-val green" id="h-profit">0 WL</div>
     </div>
+    <button onclick="clearState()" style="font-family:'Orbitron',sans-serif;font-size:0.6rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:6px 14px;border-radius:4px;background:rgba(255,68,68,0.1);color:#ff4444;border:1px solid rgba(255,68,68,0.3);cursor:pointer;transition:all 0.2s" onmouseover="this.style.background='rgba(255,68,68,0.2)'" onmouseout="this.style.background='rgba(255,68,68,0.1)'">RESET</button>
   </div>
 </header>
 
@@ -818,6 +819,7 @@ function addTransaction() {
     badge = 'badge-pack'; wlClass = 'val-orange';
     transactions.unshift({ time: timeStr, type, badge, desc, wl, wlClass, qty, price, toolId });
     renderToolsTable(); renderDropsTable(); renderSummary(); renderLog();
+    saveState();
     return;
   } else if (type === 'sell_seb') {
     const actualQty = Math.min(qty, sebStock);
@@ -831,6 +833,7 @@ function addTransaction() {
     badge = 'badge-sell'; wlClass = 'val-green';
     transactions.unshift({ time: timeStr, type, badge, desc, wl, wlClass, qty: actualQty, price, toolId });
     renderToolsTable(); renderDropsTable(); renderSummary(); renderLog();
+    saveState();
     return;
   } else if (type === 'log_drop') {
     const drop = DROPS.find(d => d.id === toolId);
@@ -841,6 +844,7 @@ function addTransaction() {
     badge = 'badge-drop'; wlClass = 'val-purple';
     transactions.unshift({ time: timeStr, type, badge, desc, wl, wlClass, qty, price, toolId: drop.id });
     renderToolsTable(); renderDropsTable(); renderSummary(); renderLog();
+    saveState();
     return;
   } else if (type === 'sell_drop') {
     const drop = DROPS.find(d => d.id === toolId);
@@ -856,6 +860,7 @@ function addTransaction() {
     badge = 'badge-sell'; wlClass = 'val-green';
     transactions.unshift({ time: timeStr, type, badge, desc, wl, wlClass, qty: actualQty, price, toolId });
     renderToolsTable(); renderDropsTable(); renderSummary(); renderLog();
+    saveState();
     return;
   }
 
@@ -907,16 +912,64 @@ function deleteTransaction(i) {
   renderDropsTable();
   renderSummary();
   renderLog();
+  saveState();
 }
+
+// ── localStorage persistence ──────────────────────────────────────
+const SAVE_KEY = 'gt_surg_tracker_v1';
+
+function saveState() {
+  const data = {
+    stock, sold, revenue,
+    dropStock, dropSold, dropRevenue,
+    transactions,
+    totalPacksBought, totalSpent,
+    sebStock, sebSold, sebRevenue,
+    sebPrice: document.getElementById('seb-price').value,
+    toolPrices: TOOLS.reduce((acc, t) => { acc[t.id] = t.price; return acc; }, {})
+  };
+  localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    Object.assign(stock, data.stock || {});
+    Object.assign(sold, data.sold || {});
+    Object.assign(revenue, data.revenue || {});
+    Object.assign(dropStock, data.dropStock || {});
+    Object.assign(dropSold, data.dropSold || {});
+    Object.assign(dropRevenue, data.dropRevenue || {});
+    transactions = data.transactions || [];
+    totalPacksBought = data.totalPacksBought || 0;
+    totalSpent = data.totalSpent || 0;
+    sebStock = data.sebStock || 0;
+    sebSold = data.sebSold || 0;
+    sebRevenue = data.sebRevenue || 0;
+    if (data.sebPrice) document.getElementById('seb-price').value = data.sebPrice;
+    if (data.toolPrices) TOOLS.forEach(t => { if (data.toolPrices[t.id] !== undefined) t.price = data.toolPrices[t.id]; });
+  } catch(e) { console.warn('Failed to load saved state', e); }
+}
+
+function clearState() {
+  if (!confirm('Reset ALL data? This cannot be undone.')) return;
+  localStorage.removeItem(SAVE_KEY);
+  location.reload();
+}
+// ─────────────────────────────────────────────────────────────────
 
 // Event listeners
 document.getElementById('tx-type').addEventListener('change', populateTxToolSelect);
 document.getElementById('seb-price').addEventListener('input', () => {
   renderToolsTable();
   renderSummary();
+  saveState();
 });
 
 // Init
+loadState();
 populateTxToolSelect();
 renderToolsTable();
 renderDropsTable();
